@@ -7,7 +7,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
     builder.button(text="Добавить аккаунт", callback_data="add_account")
-    # builder.button(text="Массовое добавление", callback_data="bulk_add_accounts")
+
     builder.button(text="Список аккаунтов", callback_data="list_accounts")
     builder.button(text="Удалить аккаунт", callback_data="delete_account")
     builder.button(text="Бюджеты", callback_data="get_budgets")
@@ -20,23 +20,24 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
 
 
 def source_selection_keyboard(report_type: str, period: str = None) -> InlineKeyboardMarkup:
-    """
-    Создает клавиатуру для выбора источника отчета
-    
-    :param report_type: Тип отчета (budgets, summary, etc.)
-    :param period: Период для отчета (today, yesterday), если применимо
-    :return: Клавиатура с кнопками источников
-    """
     sources = [
-        (Source.YANDEX_DIRECT.value, "Яндекс.Директ"),
+        (Source.YANDEX_DIRECT.value, "Яндекс.Директ"), 
+        (Source.YANDEX_BUSINESS.value, "Яндекс.Бизнес"),
     ]
-    
+
     buttons = []
     for source_key, source_name in sources:
-        callback_data = f"source_{report_type}_{source_key}"
         if period:
             callback_data = f"source_{report_type}_{period}_{source_key}"
+        else:
+            callback_data = f"source_{report_type}_{source_key}"
+
         buttons.append([InlineKeyboardButton(text=source_name, callback_data=callback_data)])
+
+    buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
     
     buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -48,6 +49,7 @@ def account_source_selection_keyboard() -> InlineKeyboardMarkup:
     """
     sources = [
         (Source.YANDEX_DIRECT.value, "Яндекс.Директ"),
+        (Source.YANDEX_BUSINESS.value, "Яндекс.Бизнес"),
     ]
     
     buttons = []

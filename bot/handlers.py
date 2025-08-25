@@ -63,52 +63,93 @@ async def process_source_selection(callback: CallbackQuery, state: FSMContext):
     # Получаем полное значение источника
     source = callback.data.replace("select_source_", "")
     await state.update_data(source=source.upper())  # Сохраняем в верхнем регистре
-    await callback.message.answer("Введите название аккаунта (для удобства идентификации):")
-    await state.set_state(AddAccountStates.waiting_for_name)
-    await callback.answer()
+    if source == "YANDEX_BUSINESS":
+        await callback.message.answer("Введите название аккаунта для Яндекс.Бизнеса: ...")
+        await state.set_state(AddAccountStates.waiting_for_name)
+        await callback.answer()
+    else:
+        await callback.message.answer("Введите название аккаунта (для удобства идентификации):")
+        await state.set_state(AddAccountStates.waiting_for_name)
+        await callback.answer()
 
 
 @router.message(AddAccountStates.waiting_for_name)
 async def process_account_name(message: Message, state: FSMContext):
     account_name = message.text.strip()
     await state.update_data(account_name=account_name)
-    await message.answer(
-        "Введите данные в формате: логин;токен;цели\n"
-        "Например: my-account;y0_token123;123,456,789\n"
-        "Где цели указываются через запятую"
-    )
+
+    # Получаем источник из состояния
+    data = await state.get_data()
+    source = data.get("source")
+
+    if source == "YANDEX_BUSINESS":
+        # Сообщение для Яндекс.Бизнес
+        await message.answer(
+            "Введите данные Яндекс.Бизнеса в формате:\n"
+            "login;token\n"
+            "Пример: my-business;y0_token123"
+        )
+    else:
+        # Сообщение для других источников (например, Яндекс.Директ)
+        await message.answer(
+            "Введите данные в формате: логин;токен;цели\n"
+            "Например: my-account;y0_token123;123,456,789\n"
+            "Где цели указываются через запятую"
+        )
+
+    # Переводим FSM в состояние ожидания credentials
     await state.set_state(AddAccountStates.waiting_for_credentials)
 
 
 @router.message(AddAccountStates.waiting_for_credentials)
 async def process_credentials(message: Message, state: FSMContext):
     try:
-        # Разбираем строку с данными
-        login, token, goals_str = message.text.strip().split(";")
-
-        # Обрабатываем цели
-        try:
-            goals = [int(g.strip()) for g in goals_str.split(",") if g.strip()]
-        except ValueError:
-            await message.answer(
-                "Ошибка: цели должны быть числами, разделенными запятой. Попробуйте снова:"
-            )
-            return
-
         # Получаем сохраненные данные
         data = await state.get_data()
         source = data.get("source")
         account_name = data.get("account_name")
+        user_id = message.chat.id  # <- получаем chat_id здесь
 
-        # Создаем данные аккаунта
-        auth = {"login": login.strip(), "token": token.strip(), "goals": goals}
+        if source == "YANDEX_BUSINESS":
+            login, token = message.text.strip().split(";")
+            auth = {"login": login.strip(), "token": token.strip()}
 
-        # Добавляем аккаунт, используя значение из enum
-        await add_account(source=Source(source).value, auth=auth, account_name=account_name)
-        await message.answer(
-            f"Аккаунт {account_name} успешно добавлен!", reply_markup=main_menu_keyboard()
-        )
-        await state.clear()
+            # Добавляем аккаунт с user_id
+            await add_account(
+                source=Source(source).value,
+                auth=auth,
+                account_name=account_name,
+                user_id=user_id
+            )
+            await message.answer(
+                f"Аккаунт Яндекс.Бизнес {account_name} успешно добавлен!", 
+                reply_markup=main_menu_keyboard()
+            )
+            await state.clear()
+
+        else:
+            login, token, goals_str = message.text.strip().split(";")
+            try:
+                goals = [int(g.strip()) for g in goals_str.split(",") if g.strip()]
+            except ValueError:
+                await message.answer(
+                    "Ошибка: цели должны быть числами, разделенными запятой. Попробуйте снова:"
+                )
+                return
+
+            auth = {"login": login.strip(), "token": token.strip(), "goals": goals}
+
+            await add_account(
+                source=Source(source).value,
+                auth=auth,
+                account_name=account_name,
+                user_id=user_id
+            )
+            await message.answer(
+                f"Аккаунт Яндекс.Директ {account_name} успешно добавлен!", 
+                reply_markup=main_menu_keyboard()
+            )
+            await state.clear()
 
     except ValueError as e:
         if "Неподдерживаемый источник" in str(e):
@@ -116,6 +157,7 @@ async def process_credentials(message: Message, state: FSMContext):
         else:
             await message.answer("Ошибка при добавлении аккаунта:\n" "текст ошибки: " + str(e))
         return
+
 
 
 # --- Просмотр списка аккаунтов ---
@@ -253,7 +295,7 @@ async def get_summary_report(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("period_"))
 async def process_period_selection(callback: CallbackQuery, state: FSMContext):
     period = callback.data.replace("period_", "")
-    
+    print("CALLBACK DATA:", callback.data)
     # Сохраняем выбранный период в состоянии
     await state.update_data(selected_period=period)
     
@@ -267,7 +309,7 @@ async def process_period_selection(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("source_summary_"))
 async def get_summary_report_source(callback: CallbackQuery, state: FSMContext):
     callback_data = callback.data.replace("source_summary_", "")
-    
+    print("CALLBACK DATA:", callback.data)
     # Проверяем, содержит ли callback данные о периоде
     if "_" in callback_data:
         period, source = callback_data.split("_", 1)
@@ -363,7 +405,7 @@ async def process_detailed_report_account_id(message: Message, state: FSMContext
             # Получаем отчет
             processor = ReportProcessor(source=Source(account['source'].upper()), db_path="accounts.db")
             reports = await processor.get_detailed_report(account_id)
-            
+
             # Удаляем промежуточное сообщение
             await progress_message.delete()
             

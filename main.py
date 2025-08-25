@@ -1,14 +1,18 @@
 import asyncio
 import logging
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 import os
+
 from bot.handlers import router, set_commands
 from database.db import init_db
+from modules.yandex_business.notification import setup_scheduler
 
 load_dotenv('.env.local')
 BOT_TOKEN = os.getenv('BOT_TOKEN')
+
 # Включаем логирование
 logging.basicConfig(level=logging.INFO)
 
@@ -18,9 +22,7 @@ dp = Dispatcher(storage=MemoryStorage())
 
 # Регистрируем роутер с хендлерами
 dp.include_router(router)
-
-
-
+ 
 async def main():
     # Инициализируем базу данных
     logging.info("Инициализация базы данных...")
@@ -29,6 +31,9 @@ async def main():
 
     # Регистрируем команды бота
     await set_commands(bot)
+
+    # Запускаем планировщик уведомлений
+    await setup_scheduler(bot)
 
     # Удаляем все обновления, накопленные за время неактивности бота
     await bot.delete_webhook(drop_pending_updates=True)

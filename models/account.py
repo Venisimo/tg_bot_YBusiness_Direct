@@ -13,6 +13,7 @@ class Account(BaseModel):
     account_name: str
     source: str
     auth: Union[YandexDirectAuth, VkAuth, dict]
+    user_id: int | None = None
 
     def __init__(self, **data):
         super().__init__(**data)

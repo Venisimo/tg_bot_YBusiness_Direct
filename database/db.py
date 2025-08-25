@@ -9,10 +9,7 @@ DB_PATH = "accounts.db"
 async def init_db(db_path: str = DB_PATH) -> None:
     """
     Инициализирует базу данных и создаёт таблицу accounts, если она ещё не существует.
-    Таблица содержит:
-      - id: автоинкрементное число
-      - source: тип источника (например, "yandex_direct" или "vk")
-      - auth: строка с данными аутентификации в формате JSON
+    Добавлено поле user_id для Telegram chat_id.
     """
     async with aiosqlite.connect(db_path) as db:
         await db.execute(
@@ -21,7 +18,8 @@ async def init_db(db_path: str = DB_PATH) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 source TEXT NOT NULL,
                 auth TEXT NOT NULL,
-                account_name TEXT NOT NULL DEFAULT ''
+                account_name TEXT NOT NULL DEFAULT '',
+                user_id INTEGER DEFAULT NULL
             );
         """
         )
@@ -29,17 +27,17 @@ async def init_db(db_path: str = DB_PATH) -> None:
 
 
 async def add_account(
-    source: str, auth: dict, account_name: str = "", db_path: str = DB_PATH
+    source: str,
+    auth: dict,
+    account_name: str = "",
+    user_id: int = None,
+    db_path: str = DB_PATH
 ) -> None:
     """
-    Добавляет новый аккаунт в базу.
+    Добавляет новый аккаунт в базу с chat_id.
 
-    :param source: Тип источника, например, "yandex_direct" или "vk"
-    :param auth: Словарь с данными аутентификации
-    :param account_name: Имя аккаунта для удобной идентификации
-    :raises ValueError: Если источник не поддерживается
+    :param user_id: Telegram chat_id пользователя
     """
-    # Проверяем, что источник поддерживается
     try:
         source_enum = Source(source.upper())
     except ValueError:
@@ -50,8 +48,8 @@ async def add_account(
     auth_json = json.dumps(auth)
     async with aiosqlite.connect(db_path) as db:
         await db.execute(
-            "INSERT INTO accounts (source, auth, account_name) VALUES (?, ?, ?)",
-            (source_enum.value, auth_json, account_name),
+            "INSERT INTO accounts (source, auth, account_name, user_id) VALUES (?, ?, ?, ?)",
+            (source_enum.value, auth_json, account_name, user_id),
         )
         await db.commit()
 
@@ -77,15 +75,14 @@ async def update_account(
     source: str = None,
     auth: dict = None,
     account_name: str = None,
+    user_id: int = None,
     db_path: str = DB_PATH,
 ) -> None:
     """
     Обновляет данные аккаунта по его ID.
 
     :param account_id: Идентификатор аккаунта
-    :param source: Новый источник (если требуется обновление)
-    :param auth: Новый словарь аутентификации (если требуется обновление)
-    :param account_name: Новое имя аккаунта (если требуется обновление)
+    :param user_id: Новый Telegram chat_id, если требуется обновление
     """
     fields = []
     values = []
@@ -98,6 +95,9 @@ async def update_account(
     if account_name is not None:
         fields.append("account_name = ?")
         values.append(account_name)
+    if user_id is not None:
+        fields.append("user_id = ?")
+        values.append(user_id)
     if not fields:
         return
     values.append(account_id)
