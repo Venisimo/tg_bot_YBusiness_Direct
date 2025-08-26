@@ -21,7 +21,7 @@ async def check_campaigns_and_notify(bot: Bot):
         for campaign in campaigns:
             if campaign["remainingDays"] <= 10:
                 text = (
-                    f"⚠️ Внимание! До окончания кампании осталось меньше 10 дней!\n"
+                    f"⚠️ *Внимание!* До окончания кампании осталось <10 дней!\n"
                     f"Аккаунт: {acc.account_name}\n"
                     f"Кампания: {campaign['name']}\n"
                     f"Статус: {campaign['status']}\n"
